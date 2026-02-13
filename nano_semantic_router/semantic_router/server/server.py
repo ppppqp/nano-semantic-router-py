@@ -75,7 +75,7 @@ class Server:
         try:
             # process function may modify the request.
             ctx.original_request = request.clone()
-            processed = await process(request, ctx)
+            processed = await process(request, self.router.config, ctx)
         except Exception as err:  # noqa: BLE001
             print(f"processing error: {err}")
             return web.Response(status=500, text="Bad Gateway")

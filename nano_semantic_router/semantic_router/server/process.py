@@ -1,3 +1,4 @@
+import copy
 import json
 from dataclasses import dataclass
 from typing import Any, TypeGuard, Union, cast
@@ -12,7 +13,7 @@ from openai.types.responses.response_create_params import (
     ResponseCreateParamsNonStreaming,
     ResponseCreateParamsStreaming,
 )
-from nano_semantic_router.config.config import RouterConfig
+from nano_semantic_router.config.config import ModelRef, RouterConfig
 import logging
 from nano_semantic_router.semantic_router.signal.signal import (
     get_signals_from_content,
@@ -59,17 +60,33 @@ async def process(
         user_content=user_content,
     )
     decision = make_routing_decision(signals, router_config.decisions)
+    model_ref = router_config.default_model
+
     if not decision:
         logging.warning(
-            "No routing decision matched for request; Using default route. "
+            "No routing decision matched for request; using default route. "
         )
-        # TODO: implement default route
     else:
+        model_ref = decision.decision.model_ref
         logging.info(
-            f"Routing decision: {decision.decision.name} (confidence: {decision.confidence:.2f}, matched_rules: {decision.matched_rules}) -> target model: {decision.decision.model_ref.model}"
+            f"Routing decision: {decision.decision.name} (confidence: {decision.confidence:.2f}, matched_rules: {decision.matched_rules}) -> target model: {model_ref.model}"
         )
-        # TODO: correctly handle rerouting by modifying the request
-    return ProcessedRequest(request.method, path_and_query, headers, body)
+
+    rewritten_body, rewritten_headers, rewritten_path = _apply_routing(
+        body,
+        headers,
+        parsed_request,
+        model_ref,
+        path_and_query,
+        ctx,
+    )
+
+    return ProcessedRequest(
+        request.method,
+        rewritten_path,
+        rewritten_headers,
+        rewritten_body,
+    )
 
 
 def parse_openai_request(body: bytes) -> ParsedOpenAIRequest:
@@ -112,6 +129,66 @@ def parse_openai_request(body: bytes) -> ParsedOpenAIRequest:
 def translate_request(body: bytes) -> bytes:
     # translate a Response API request to Chat Completion format and return the translated body
     return body
+
+
+def _apply_routing(
+    body: bytes,
+    headers: CIMultiDict[str],
+    parsed_request: ParsedOpenAIRequest,
+    model_ref: ModelRef,
+    path_and_query: str,
+    ctx: RouterContext,
+) -> tuple[bytes, CIMultiDict[str], str]:
+    """Update payload, headers, and upstream base according to the selected model."""
+
+    new_headers = CIMultiDict(headers)
+
+    if model_ref.endpoint:
+        ctx.upstream_base = model_ref.endpoint
+
+    auth_header = _build_auth_header(model_ref)
+    if auth_header:
+        header_name, header_value = auth_header
+        new_headers[header_name] = header_value
+
+    updated_payload = _rewrite_model(parsed_request, model_ref.model)
+    rewritten_body = json.dumps(updated_payload).encode("utf-8")
+
+    rewritten_path = _rewrite_path(path_and_query, model_ref)
+
+    return rewritten_body, new_headers, rewritten_path
+
+
+def _build_auth_header(model_ref: ModelRef) -> tuple[str, str] | None:
+    token = model_ref.access_key.strip()
+    if token == "":
+        return None
+
+    header_name = "Authorization"
+    header_value = token
+
+    if model_ref.model_type.lower() == "openai" or not token.lower().startswith(
+        "bearer "
+    ):
+        header_value = (
+            f"Bearer {token}" if not token.lower().startswith("bearer ") else token
+        )
+
+    return header_name, header_value
+
+
+def _rewrite_model(
+    parsed_request: ParsedOpenAIRequest, target_model: str
+) -> ParsedOpenAIRequest:
+    updated = copy.deepcopy(parsed_request)
+    if isinstance(updated, dict):
+        updated["model"] = target_model
+    return updated
+
+
+def _rewrite_path(current_path: str, model_ref: ModelRef) -> str:
+    # Placeholder to let us customize path by provider in the future.
+    return current_path
 
 
 def _require_keys(payload: dict[str, Any], keys: list[str]) -> None:
