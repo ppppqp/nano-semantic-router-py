@@ -92,7 +92,6 @@ def compute_use_case_signal(
     model_path: str,
     use_cases: list[str],
     user_content: str,
-    non_user_content: str,
 ) -> UseCaseSignalOutput:
     """Helper to compute use case signal from request content."""
     model_output = UseCaseClassifier.classify(

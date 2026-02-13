@@ -1,7 +1,14 @@
 from dataclasses import dataclass, field
-from typing import List, Literal
+from typing import List, Literal, TYPE_CHECKING
 
 from enum import StrEnum
+
+if TYPE_CHECKING:
+    from nano_semantic_router.semantic_router.signal.signal import (
+        Signal,
+        UseCaseSignal,
+        ComplexitySignal,
+    )
 
 
 @dataclass
@@ -44,16 +51,46 @@ class UseCaseSignalConfig(SignalConfig):
     use_cases: List[str] = field(default_factory=list)
 
 
+class SignalOperator(StrEnum):
+    EQ = "EQ"
+    NEQ = "NEQ"
+    GT = "GT"
+    LT = "LT"
+
+
+@dataclass
+class Condition:
+    signal: Signal
+    operator: SignalOperator
+
+
+class ConditionOperator(StrEnum):
+    AND = "AND"
+    OR = "OR"
+
+
+@dataclass
+class ModelRef:
+    model: str
+    endpoint: str
+    access_key: str
+    model_type: (
+        str  # e.g. "openai", "anthropic", "custom". Only support openai for now.
+    )
+
+
 @dataclass
 class DecisionConfig:
-    """Placeholder for future decision configuration."""
-
-    pass
+    name: str
+    model_ref: ModelRef
+    rules: List[Condition] = field(default_factory=list)
+    operator: ConditionOperator = ConditionOperator.AND
 
 
 @dataclass
 class RouterConfig:
+    default_model: ModelRef
     classifier: ClassifierConfig = field(default_factory=ClassifierConfig)
     cache: CacheConfig = field(default_factory=CacheConfig)
-    decisions: DecisionConfig = field(default_factory=DecisionConfig)
-    signals: SignalConfig = field(default_factory=SignalConfig)
+    decisions: list[DecisionConfig] = field(default_factory=list)
+    signals: list[SignalConfig] = field(default_factory=list)

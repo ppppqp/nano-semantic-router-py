@@ -12,9 +12,13 @@ from openai.types.responses.response_create_params import (
     ResponseCreateParamsNonStreaming,
     ResponseCreateParamsStreaming,
 )
+from nano_semantic_router.config.config import RouterConfig
 import logging
-
+from nano_semantic_router.semantic_router.signal.signal import (
+    get_signals_from_content,
+)
 from nano_semantic_router.semantic_router.server.context import RouterContext
+from nano_semantic_router.semantic_router.decision.decision import make_routing_decision
 
 
 @dataclass
@@ -33,7 +37,9 @@ ParsedOpenAIRequest = Union[
 ]
 
 
-async def process(request: web.Request, ctx: RouterContext) -> ProcessedRequest:
+async def process(
+    request: web.Request, router_config: RouterConfig, ctx: RouterContext
+) -> ProcessedRequest:
     body = await request.read()
     # TODO: check headers, parse request metadata (request id) and classify.
     print(f"body ({len(body)} bytes): {body!r}")
@@ -41,15 +47,28 @@ async def process(request: web.Request, ctx: RouterContext) -> ProcessedRequest:
     headers = CIMultiDict(request.headers)
     path_and_query = request.rel_url.human_repr()
     parsed_request = parse_openai_request(body)
-    user_content, non_user_content = extract_user_content(parsed_request)
+    user_content, _ = extract_user_content(parsed_request)
     if user_content == "":
         logging.warning(
             "No user content extracted from request; routing may be inaccurate. "
         )
 
     # use user_content to do routing.
-    signals = get_signals_from_content(user_content, non_user_content)
-    decision_name, confidence = make_routing_decision(signals)
+    signals = get_signals_from_content(
+        active_signals=router_config.signals,
+        user_content=user_content,
+    )
+    decision = make_routing_decision(signals, router_config.decisions)
+    if not decision:
+        logging.warning(
+            "No routing decision matched for request; Using default route. "
+        )
+        # TODO: implement default route
+    else:
+        logging.info(
+            f"Routing decision: {decision.decision.name} (confidence: {decision.confidence:.2f}, matched_rules: {decision.matched_rules}) -> target model: {decision.decision.model_ref.model}"
+        )
+        # TODO: correctly handle rerouting by modifying the request
     return ProcessedRequest(request.method, path_and_query, headers, body)
 
 

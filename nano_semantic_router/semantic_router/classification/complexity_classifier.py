@@ -65,7 +65,7 @@ def _score_confidence(raw_text: str) -> float:
 
 
 def compute_complexity_signal(
-    user_content: str, non_user_content: str, model_path: str
+    user_content: str, model_path: str
 ) -> ComplexitySignalOutput:
     """Helper to compute complexity signal from request content."""
     model_output = ComplexityClassifier.classify(
