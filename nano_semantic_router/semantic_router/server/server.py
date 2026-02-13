@@ -6,6 +6,7 @@ from aiohttp import ClientSession, ClientTimeout, TCPConnector, web
 from multidict import CIMultiDict
 from yarl import URL
 
+import logging
 from nano_semantic_router.semantic_router.server.context import RouterContext
 from nano_semantic_router.semantic_router.server.process import (
     ProcessedRequest,
@@ -51,12 +52,13 @@ class Server:
             ssl_context=None,
         )
 
-        print(
+        logging.info(
             f"Starting server on http://0.0.0.0:{self.config.port} "
             f"(secure: {self.config.secure}) -> upstream {self.config.upstream_base}"
         )
 
         await site.start()
+        logging.info("Server started successfully.")
         try:
             await asyncio.Event().wait()
         finally:
@@ -77,7 +79,7 @@ class Server:
             ctx.original_request = request.clone()
             processed = await process(request, self.router.config, ctx)
         except Exception as err:  # noqa: BLE001
-            print(f"processing error: {err}")
+            logging.error(f"processing error: {err}")
             return web.Response(status=500, text="Bad Gateway")
 
         try:

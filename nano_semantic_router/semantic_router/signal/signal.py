@@ -27,13 +27,19 @@ class Signal:
 @dataclass
 class ComplexitySignal(Signal):
     score: float  # 0-10 complexity score, where 0 is simple and 10 is complex.
-    signal_type: SignalType = SignalType.COMPLEXITY
+
+    def __init__(self, score: float):
+        super().__init__(signal_type=SignalType.COMPLEXITY)
+        self.score = score
 
 
 @dataclass
 class UseCaseSignal(Signal):
     use_case: str  # categorical label indicating the use case of the request, e.g. "code_generation", "question_answering", etc.
-    signal_type: SignalType = SignalType.USE_CASE
+
+    def __init__(self, use_case: str):
+        super().__init__(signal_type=SignalType.USE_CASE)
+        self.use_case = use_case
 
 
 def get_signals_from_content(
