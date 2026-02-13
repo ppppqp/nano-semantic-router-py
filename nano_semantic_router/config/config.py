@@ -25,6 +25,8 @@ class SignalType(StrEnum):
 @dataclass
 class SignalConfig:
     signal_type: SignalType = SignalType.UNKNOWN
+    confidence_threshold: float = 0.0
+    model_path: str = ""
 
 
 @dataclass
