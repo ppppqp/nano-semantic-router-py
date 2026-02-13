@@ -19,11 +19,12 @@ class CacheConfig:
 class SignalType(StrEnum):
     COMPLEXITY = "complexity"
     USE_CASE = "use_case"
+    UNKNOWN = "unknown"
 
 
 @dataclass
 class SignalConfig:
-    signal_type: SignalType
+    signal_type: SignalType = SignalType.UNKNOWN
 
 
 @dataclass
