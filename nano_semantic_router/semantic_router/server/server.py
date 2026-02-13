@@ -73,6 +73,8 @@ class Server:
     async def _handle_request(self, request: web.Request) -> web.Response:
         ctx: RouterContext = request.app["ctx"]
         try:
+            # process function may modify the request.
+            ctx.original_request = request.clone()
             processed = await process(request, ctx)
         except Exception as err:  # noqa: BLE001
             print(f"processing error: {err}")
