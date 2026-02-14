@@ -13,7 +13,7 @@ from openai.types.responses.response_create_params import (
     ResponseCreateParamsNonStreaming,
     ResponseCreateParamsStreaming,
 )
-from nano_semantic_router.config.config import ModelRef, RouterConfig
+from nano_semantic_router.config.config import Model, RouterConfig
 import logging
 from nano_semantic_router.semantic_router.signal.signal import (
     get_signals_from_content,
@@ -60,23 +60,33 @@ async def process(
         user_content=user_content,
     )
     decision = make_routing_decision(signals, router_config.decisions)
-    model_ref = router_config.default_model
+
+    # get default model from router config
+    default_model = iter(
+        model for model in router_config.models.values() if model.is_default
+    )
+    default_model = next(default_model, None)
+    if not default_model:
+        # TODO: bring the validation of router config to startup time to catch this kind of critical issue early.
+        raise ValueError("No default model configured in router")
 
     if not decision:
-        logging.warning(
-            "No routing decision matched for request; using default route. "
-        )
+        assert default_model, "Default model should be configured in router"
+        model = default_model
     else:
-        model_ref = decision.decision.model_ref
+        model = router_config.models.get(decision.decision.model_ref)
+        assert model, (
+            f"Model '{decision.decision.model_ref}' not found in router configuration"
+        )
         logging.info(
-            f"Routing decision: {decision.decision.name} (confidence: {decision.confidence:.2f}, matched_rules: {decision.matched_rules}) -> target model: {model_ref.model}"
+            f"Routing decision: {decision.decision.name} (confidence: {decision.confidence:.2f}, matched_rules: {decision.matched_rules}) -> target model: {model}"
         )
 
     rewritten_body, rewritten_headers, rewritten_path = _apply_routing(
         body,
         headers,
         parsed_request,
-        model_ref,
+        model,
         path_and_query,
         ctx,
     )
@@ -135,7 +145,7 @@ def _apply_routing(
     body: bytes,
     headers: CIMultiDict[str],
     parsed_request: ParsedOpenAIRequest,
-    model_ref: ModelRef,
+    model_ref: Model,
     path_and_query: str,
     ctx: RouterContext,
 ) -> tuple[bytes, CIMultiDict[str], str]:

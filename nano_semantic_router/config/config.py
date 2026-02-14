@@ -8,21 +8,12 @@ from enum import StrEnum
 if TYPE_CHECKING:
     from nano_semantic_router.semantic_router.signal.signal import (
         Signal,
-        UseCaseSignal,
-        ComplexitySignal,
     )
 
 
 @dataclass
 class ClassifierConfig:
-    model_path: str = ""
-    threshold: float = 0.0
-
-
-@dataclass
-class CacheConfig:
-    size: int = 0
-    eviction_policy: str = ""
+    model_ref: str = ""
 
 
 class SignalType(StrEnum):
@@ -35,7 +26,7 @@ class SignalType(StrEnum):
 class SignalConfig:
     signal_type: SignalType = SignalType.UNKNOWN
     confidence_threshold: float = 0.0
-    model_path: str = ""
+    classifier: ClassifierConfig = field(default_factory=ClassifierConfig)
 
 
 @dataclass
@@ -72,27 +63,25 @@ class ConditionOperator(StrEnum):
 
 
 @dataclass
-class ModelRef:
-    model: str
+class Model:
+    name: str
     endpoint: str
     access_key: str
-    model_type: (
-        str  # e.g. "openai", "anthropic", "custom". Only support openai for now.
-    )
+    model_type: str  # e.g. "openai", "anthropic", "local". Only support openai and local for now.
+    is_default: bool = False
+    path: str = ""  # optional local path for local models
 
 
 @dataclass
 class DecisionConfig:
     name: str
-    model_ref: ModelRef
+    model_ref: str
     rules: List[Condition] = field(default_factory=list)
     operator: ConditionOperator = ConditionOperator.AND
 
 
 @dataclass
 class RouterConfig:
-    default_model: ModelRef
-    classifier: ClassifierConfig = field(default_factory=ClassifierConfig)
-    cache: CacheConfig = field(default_factory=CacheConfig)
+    models: dict[str, Model]
     decisions: list[DecisionConfig] = field(default_factory=list)
     signals: list[SignalConfig] = field(default_factory=list)

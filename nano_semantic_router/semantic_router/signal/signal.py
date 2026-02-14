@@ -1,5 +1,6 @@
 from nano_semantic_router.config.config import (
     Condition,
+    RouterConfig,
     SignalConfig,
     ComplexitySignalConfig,
     SignalOperator,
@@ -9,6 +10,7 @@ from nano_semantic_router.config.config import (
 import logging
 from dataclasses import dataclass
 
+from nano_semantic_router.config.utils import get_model_by_ref
 from nano_semantic_router.semantic_router.classification.use_case_classifier import (
     compute_use_case_signal,
 )
@@ -43,7 +45,7 @@ class UseCaseSignal(Signal):
 
 
 def get_signals_from_content(
-    active_signals: list[SignalConfig], user_content: str
+    active_signals: list[SignalConfig], user_content: str, router_config: RouterConfig
 ) -> list[Signal]:
     """Return a list of matched signals."""
     signal_analysis_result = []
@@ -52,9 +54,12 @@ def get_signals_from_content(
         return []
 
     for signal in active_signals:
+        classifier_model_path = get_model_by_ref(
+            signal.classifier.model_ref, router_config
+        ).path
         if isinstance(signal, ComplexitySignalConfig):
             complexity_score = compute_complexity_signal(
-                model_path=signal.model_path,
+                model_path=classifier_model_path,
                 user_content=user_content,
             )
             if complexity_score.confidence >= signal.confidence_threshold:
@@ -63,7 +68,7 @@ def get_signals_from_content(
                 )
         elif isinstance(signal, UseCaseSignalConfig):
             use_case_result = compute_use_case_signal(
-                model_path=signal.model_path,
+                model_path=classifier_model_path,
                 use_cases=signal.use_cases,
                 user_content=user_content,
             )
